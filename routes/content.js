@@ -48,6 +48,36 @@ function assertValidSection(req, res, next) {
   next();
 }
 
+function sanitizeItemValue(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeItemValue(item))
+      .filter((item) => typeof item === "string" ? item.trim() !== "" : item !== null && item !== undefined && typeof item !== "object");
+  }
+
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return value;
+
+  if (value && typeof value === "object") {
+    if (Object.prototype.hasOwnProperty.call(value, "0") && value[0] !== undefined) {
+      return sanitizeItemValue(value[0]);
+    }
+    return "";
+  }
+
+  return value ?? "";
+}
+
+function sanitizePayloadForSection(item) {
+  if (!item || typeof item !== "object") return item;
+
+  const cleaned = {};
+  for (const [key, value] of Object.entries(item)) {
+    cleaned[key] = sanitizeItemValue(value);
+  }
+  return cleaned;
+}
+
 async function getOrCreate(page) {
   let doc = await PageContent.findOne({ page });
   if (!doc) doc = await PageContent.create({ page });
@@ -86,7 +116,8 @@ router.put("/:page", assertValidPage, requireAdmin, async (req, res) => {
 
 router.post("/:page/:section", assertValidPage, assertValidSection, requireAdmin, async (req, res) => {
   const doc = await getOrCreate(req.params.page);
-  doc[req.params.section].push(req.body);
+  const cleanedItem = sanitizePayloadForSection(req.body);
+  doc[req.params.section].push(cleanedItem);
   await doc.save();
   res.status(201).json(doc);
 });
@@ -98,7 +129,8 @@ router.put("/:page/:section/:itemId", assertValidPage, assertValidSection, requi
   const item = doc[req.params.section].id(req.params.itemId);
   if (!item) return res.status(404).json({ error: "Item not found" });
 
-  Object.assign(item, req.body);
+  const cleanedItem = sanitizePayloadForSection(req.body);
+  Object.assign(item, cleanedItem);
   await doc.save();
   res.json(doc);
 });
