@@ -1,15 +1,15 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import path from "path";
-import { fileURLToPath } from "url";
+// import path from "path";
+// import { fileURLToPath } from "url";
 import { connectDB } from "./db.js";
 import authRoutes from "./routes/auth.js";
 import contentRoutes from "./routes/content.js";
 import uploadsRoutes from "./routes/uploads.js";
 import contactRoutes from "./routes/contact.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -29,7 +29,7 @@ app.use(
 app.use(express.json());
 
 // Serve uploaded files
-app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
+// app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use("/api/auth", authRoutes);
