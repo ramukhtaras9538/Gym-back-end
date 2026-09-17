@@ -1,87 +1,191 @@
 import { Router } from "express";
-import nodemailer from "nodemailer";
+import { transporter } from "../config/mailer.js";
 
 const router = Router();
 
-function getMailer() {
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = Number(process.env.SMTP_PORT || 587);
-  const secure = process.env.SMTP_SECURE === "true";
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+const escapeHtml = (unsafe) =>
+  String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 
-  if (!host || !user || !pass) {
-    throw new Error(
-      "SMTP email configuration is incomplete. Set SMTP_HOST, SMTP_USER, SMTP_PASS, and EMAIL_TO in your .env file. For Gmail, use your Gmail address and an app password."
-    );
-  }
+router.post("/", (req, res) => {
+  const { name, email, phone, program, message } = req.body || {};
 
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
+  console.log("Received contact form submission:", {
+    name,
+    email,
+    phone,
+    program,
+    message,
   });
-}
 
-function getEmailMetadata() {
-  const to = process.env.EMAIL_TO || process.env.SMTP_USER;
-  if (!to) {
-    throw new Error("EMAIL_TO is not configured. Please set EMAIL_TO in your environment.");
+  if (!name || !email || !message) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Missing required fields: name, email, message",
+      });
   }
 
-  return {
-    to,
-    from: process.env.EMAIL_FROM || process.env.SMTP_USER,
-    subjectPrefix: process.env.EMAIL_SUBJECT_PREFIX || "[Inquiry] ",
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    replyTo: email,
+    to: process.env.EMAIL_USER, // Replace with your email address
+    subject: `New inquiry from ${name} - ${program || "No Program"}`,
+    text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone || "N/A"}\nProgram: ${program || "No Program"}\n\n${message}`,
+    html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>New Gym Inquiry</title>
+        </head>
+
+        <body style="margin:0; padding:0; background-color:#f4f6f8; font-family:Arial, Helvetica, sans-serif; color:#333;">
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f8; padding:30px 15px;">
+            <tr>
+              <td align="center">
+
+                <table width="600" cellpadding="0" cellspacing="0" border="0"
+                  style="max-width:600px; width:100%; background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+                  <!-- Header -->
+                  <tr>
+                    <td style="background-color:#111827; padding:25px 30px; text-align:center;">
+                      <h1 style="margin:0; color:#ffffff; font-size:24px; font-weight:600;">
+                        New Gym Inquiry
+                      </h1>
+
+                      <p style="margin:8px 0 0; color:#d1d5db; font-size:14px;">
+                        A new inquiry has been submitted through your website
+                      </p>
+                    </td>
+                  </tr>
+
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding:30px;">
+
+                      <h2 style="margin:0 0 20px; color:#111827; font-size:20px;">
+                        Contact Details
+                      </h2>
+
+                      <!-- Name -->
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                        style="margin-bottom:12px; background:#f9fafb; border-radius:6px;">
+                        <tr>
+                          <td style="padding:14px 16px;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+                              NAME
+                            </div>
+                            <div style="font-size:15px; color:#111827; font-weight:600;">
+                              ${escapeHtml(name)}
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Email -->
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                        style="margin-bottom:12px; background:#f9fafb; border-radius:6px;">
+                        <tr>
+                          <td style="padding:14px 16px;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+                              EMAIL
+                            </div>
+                            <div style="font-size:15px; color:#111827;">
+                              ${escapeHtml(email)}
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Phone -->
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                        style="margin-bottom:12px; background:#f9fafb; border-radius:6px;">
+                        <tr>
+                          <td style="padding:14px 16px;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+                              PHONE
+                            </div>
+                            <div style="font-size:15px; color:#111827;">
+                              ${escapeHtml(phone || "N/A")}
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Program -->
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                        style="margin-bottom:25px; background:#f9fafb; border-radius:6px;">
+                        <tr>
+                          <td style="padding:14px 16px;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">
+                              PROGRAM
+                            </div>
+                            <div style="font-size:15px; color:#111827; font-weight:600;">
+                              ${escapeHtml(program || "N/A")}
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Message -->
+                      <h2 style="margin:0 0 12px; color:#111827; font-size:18px;">
+                        Message
+                      </h2>
+
+                      <div style="
+                        background:#f9fafb;
+                        border-left:4px solid #111827;
+                        padding:16px;
+                        border-radius:4px;
+                        font-size:15px;
+                        line-height:1.6;
+                        color:#374151;
+                      ">
+                        ${escapeHtml(message).replace(/\n/g, "<br>")}
+                      </div>
+
+                    </td>
+                  </tr>
+
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color:#f9fafb; padding:18px 30px; text-align:center; border-top:1px solid #e5e7eb;">
+                      <p style="margin:0; font-size:12px; color:#6b7280;">
+                        This inquiry was submitted through your gym website contact form.
+                      </p>
+                    </td>
+                  </tr>
+
+                </table>
+
+              </td>
+            </tr>
+          </table>
+
+        </body>
+        </html>
+        `,
   };
-}
 
-router.get("/test", async (req, res, next) => {
-  try {
-    const transporter = getMailer();
-    await transporter.verify();
-    res.json({ ok: true, message: "SMTP configuration is valid." });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/", async (req, res, next) => {
-  try {
-    const { name, email, phone, program, message } = req.body || {};
-    const safeName = String(name || "").trim();
-    const safeEmail = String(email || "").trim();
-    const safeMessage = String(message || "").trim();
-
-    if (!safeName || !safeEmail || !safeMessage) {
-      return res.status(400).json({ error: "Name, email, and message are required." });
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Error sending email:", error);
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to send email" });
     }
-
-    const { to, from, subjectPrefix } = getEmailMetadata();
-    const transporter = getMailer();
-
-    const mailOptions = {
-      from,
-      to,
-      replyTo: safeEmail,
-      subject: `${subjectPrefix}New inquiry from ${safeName}`,
-      text: `Name: ${safeName}\nEmail: ${safeEmail}\nPhone: ${String(phone || "N/A").trim() || "N/A"}\nProgram: ${String(program || "N/A").trim() || "N/A"}\n\nMessage:\n${safeMessage}`,
-      html: `
-        <p><strong>Name:</strong> ${safeName}</p>
-        <p><strong>Email:</strong> ${safeEmail}</p>
-        <p><strong>Phone:</strong> ${String(phone || "N/A").trim() || "N/A"}</p>
-        <p><strong>Program:</strong> ${String(program || "N/A").trim() || "N/A"}</p>
-        <p><strong>Message:</strong></p>
-        <p>${safeMessage.replace(/\n/g, "<br />")}</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
+    console.log("Email sent:", info.response);
+    res.json({ success: true, message: "Email sent successfully" });
+  });
 });
 
 export default router;
