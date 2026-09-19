@@ -2,6 +2,7 @@ import { Router } from "express";
 import { transporter } from "../config/mailer.js";
 
 const router = Router();
+const mailUser = process.env.EMAIL_USER;
 
 const escapeHtml = (unsafe) =>
   String(unsafe)
@@ -11,7 +12,7 @@ const escapeHtml = (unsafe) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { name, email, phone, program, message } = req.body || {};
 
   console.log("Received contact form submission:", {
@@ -32,9 +33,9 @@ router.post("/", (req, res) => {
   }
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: mailUser,
     replyTo: email,
-    to: process.env.EMAIL_USER, // Replace with your email address
+    to: mailUser,
     subject: `New inquiry from ${name} - ${program || "No Program"}`,
     text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone || "N/A"}\nProgram: ${program || "No Program"}\n\n${message}`,
     html: `
@@ -176,16 +177,21 @@ router.post("/", (req, res) => {
         `,
   };
 
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error("Error sending email:", error);
-      return res
-        .status(500)
-        .json({ success: false, message: "Failed to send email" });
-    }
-    console.log("Email sent:", info.response);
-    res.json({ success: true, message: "Email sent successfully" });
-  });
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent:", info.messageId);
+    return res.json({ success: true, message: "Email sent successfully" });
+  } catch (error) {
+    console.error("Error sending contact email:", {
+      code: error.code,
+      responseCode: error.responseCode,
+      response: error.response,
+      message: error.message,
+    });
+    return res
+      .status(502)
+      .json({ success: false, message: "Failed to send email" });
+  }
 });
 
 export default router;
